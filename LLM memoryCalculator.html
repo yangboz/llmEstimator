@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Memory Estimator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+        }
+        table {
+            width: 50%;
+            margin: 20px 0;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result, #gpuEstimation {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>GPU Memory Estimation for LLM (Fine-tuned with PEFT, QLoRA)</h1>
+
+    <form id="gpuForm">
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Select LLM Model</td>
+                <td>
+                    <select id="llmModel" onchange="updateParameters()">
+                        <option value="">--Select Model--</option>
+                        <option value="LLaMA2">LLaMA2 (65B params)</option>
+                        <option value="LLaMA2_fine">LLaMA2 Fine-tuned (60B params)</option>
+                        <option value="LLaMA3">LLaMA3 (70B params)</option>
+                        <option value="LLaMA3_fine">LLaMA3 Fine-tuned (65B params)</option>
+                        <option value="LLaMA3.1">LLaMA3.1 (80B params)</option>
+                        <option value="LLaMA3.1_fine">LLaMA3.1 Fine-tuned (75B params)</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td>Number of Parameters (P, in billions)</td>
+                <td><input type="number" id="parameters" min="1" step="0.1" placeholder="e.g., 70" required></td>
+            </tr>
+            <tr>
+                <td>Bits per Parameter (Q)</td>
+                <td>
+                    <select id="bits" required>
+                        <option value="16">16-bit</option>
+                        <option value="32">32-bit</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td>Select GPU Type</td>
+                <td>
+                    <select id="gpuType" required>
+                        <option value="H100">H100</option>
+                        <option value="H200">H200</option>
+                        <option value="A800">A800</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td>Fine-tuning Technique</td>
+                <td>
+                    <select id="fineTuneMethod" onchange="updateFineTuneMethod()">
+                        <option value="standard">Standard</option>
+                        <option value="peft">PEFT</option>
+                        <option value="qlora">QLoRA</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td>Overhead (Fixed at 20%)</td>
+                <td><input type="text" value="1.2" disabled></td>
+            </tr>
+            <tr>
+                <td colspan="2"><button type="button" onclick="calculateMemory()">Estimate GPU Memory</button></td>
+            </tr>
+        </table>
+    </form>
+
+    <h2 id="result">Estimated GPU Memory: <span>0</span> GB</h2>
+    <h2 id="gpuEstimation">Estimated Number of GPUs: <span>0</span></h2>
+
+    <script>
+        // Function to update parameters based on selected LLM model
+        function updateParameters() {
+            const model = document.getElementById("llmModel").value;
+            let parameters = 0;
+
+            if (model === "LLaMA2") {
+                parameters = 65;  // LLaMA2 has 65 billion parameters
+            } else if (model === "LLaMA2_fine") {
+                parameters = 60;  // LLaMA2 Fine-tuned has 60 billion parameters
+            } else if (model === "LLaMA3") {
+                parameters = 70;  // LLaMA3 has 70 billion parameters
+            } else if (model === "LLaMA3_fine") {
+                parameters = 65;  // LLaMA3 Fine-tuned has 65 billion parameters
+            } else if (model === "LLaMA3.1") {
+                parameters = 80;  // LLaMA3.1 has 80 billion parameters
+            } else if (model === "LLaMA3.1_fine") {
+                parameters = 75;  // LLaMA3.1 Fine-tuned has 75 billion parameters
+            }
+
+            // Set the parameters field
+            document.getElementById("parameters").value = parameters;
+        }
+
+        // Function to adjust for fine-tuning method
+        function updateFineTuneMethod() {
+            const method = document.getElementById("fineTuneMethod").value;
+
+            if (method === "peft") {
+                alert("PEFT selected: Memory usage will be reduced by 50%");
+            } else if (method === "qlora") {
+                alert("QLoRA selected: Memory usage will be reduced by 70%");
+            }
+        }
+
+        function calculateMemory() {
+            // Get input values
+            let P = document.getElementById("parameters").value * 1e9;  // Convert to billions
+            const Q = document.getElementById("bits").value;
+            const overhead = 1.2;
+            const gpuType = document.getElementById("gpuType").value;
+            const fineTuneMethod = document.getElementById("fineTuneMethod").value;
+
+            // Define GPU-specific memory factors (hypothetical for this example)
+            let gpuFactor;
+            if (gpuType === "H100") {
+                gpuFactor = 1; // Assume H100 has standard memory requirement
+            } else if (gpuType === "H200") {
+                gpuFactor = 1.1; // Assume H200 has a 10% higher memory efficiency
+            } else if (gpuType === "A800") {
+                gpuFactor = 0.9; // Assume A800 has slightly lower memory efficiency
+            }
+
+            // Adjust parameters based on fine-tuning technique
+            if (fineTuneMethod === "peft") {
+                P = P * 0.5;  // PEFT reduces memory usage by 50%
+            } else if (fineTuneMethod === "qlora") {
+                P = P * 0.3;  // QLoRA reduces memory usage by 70%
+            }
+
+            // Calculate GPU memory in GB
+            const memoryGB = (P * 4 * Q * overhead * gpuFactor) / (1024 * 1024 * 1024);
+
+            // Display the result
+            document.getElementById("result").querySelector("span").textContent = memoryGB.toFixed(2);
+
+            // GPU memory capacity for each type
+            const h100Memory = 80;  // H100 has 80 GB
+            const a800Memory = 80;  // A800 has 80 GB
+            const h200Memory = 100; // H200 has 100 GB
+
+            // Calculate number of GPUs needed
+            const h100Needed = Math.ceil(memoryGB / h100Memory);
+            const a800Needed = Math.ceil(memoryGB / a800Memory);
+            const h200Needed = Math.ceil(memoryGB / h200Memory);
+
+            // Display the number of GPUs needed
+            document.getElementById("gpuEstimation").querySelector("span").textContent = 
+                `H100: ${h100Needed}, A800: ${a800Needed}, H200: ${h200Needed}`;
+        }
+    </script>
+
+</body>
+</html>
